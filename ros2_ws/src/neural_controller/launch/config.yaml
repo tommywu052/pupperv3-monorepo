@@ -28,7 +28,7 @@ controller_manager:
 
 imu_sensor_broadcaster:
   ros__parameters:
-    update_rate: 260
+    update_rate: 100
     frame_id: base_link
     sensor_name: imu_sensor
 
@@ -174,7 +174,12 @@ joint_state_broadcaster:
 cmd_vel_mux:
   ros__parameters:
     deadband: 0.05
-    joystick_timeout_ms: 500
+    timeout_ms: 500
+    inputs:
+      - "/teleop_cmd_vel"
+      - "/nav_cmd_vel"
+      - "/llm_cmd_vel"
+      - "/person_following_cmd_vel"
 
 joy_util_node:
   ros__parameters:

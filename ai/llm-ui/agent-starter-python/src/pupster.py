@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 
@@ -14,6 +15,10 @@ from livekit.plugins import cartesia, openai, google, deepgram, silero
 from livekit.agents import UserInputTranscribedEvent
 from openai.types.beta.realtime.session import TurnDetection
 import subprocess
+
+# Local plugin: DashScope (Qwen) Realtime TTS, drop-in replacement for cartesia.TTS.
+# See dashscope_tts.py in this directory.
+import dashscope_tts
 
 
 logger = logging.getLogger("agent")
@@ -72,6 +77,10 @@ ANIMATION_NAMES = {
     "swim": {
         "csv_name": "swim_recording_2025-09-04_16-10-45_0",
         "description": "From lying position, performs silly swimming motions with the legs",
+    },
+    "sajiao": {
+        "csv_name": "sajiao_recording_2026-05-19_23-35-53",
+        "description": "Acts cute and needy, like a puppy begging for attention and affection (撒嬌)",
     },
 }
 
@@ -181,6 +190,14 @@ def openairealtime_session():
     )
 
 
+def _make_pupster_tts():
+    # DashScope Qwen Realtime TTS. Cherry = built-in voice; override via env if you
+    # want a custom voice clone (e.g. OPENTALKING_TTS_VOICE=qwen-tts-vc-xxxxx).
+    import os as _os
+    voice = _os.environ.get("OPENTALKING_TTS_VOICE", "Cherry") or "Cherry"
+    return dashscope_tts.TTS(voice=voice)
+
+
 def openairealtime_cartesia_session():
     return AgentSession(
         llm=openai.realtime.RealtimeModel(
@@ -195,7 +212,7 @@ def openairealtime_cartesia_session():
                 interrupt_response=True,
             ),
         ),
-        tts=cartesia.TTS(voice="e7651bee-f073-4b79-9156-eff1f8ae4fd9", model="sonic-3"),
+        tts=_make_pupster_tts(),
     )
 
 
@@ -208,8 +225,135 @@ def gemini_cartesia_session():
             instructions="",
             modalities=["text"],
         ),
-        tts=cartesia.TTS(voice="e7651bee-f073-4b79-9156-eff1f8ae4fd9"),
+        tts=_make_pupster_tts(),
     )
+
+
+def _make_gated_audio(source):
+    """Return a fresh AudioInput subclass instance that gates its `source`.
+
+    Defined as a factory so we can import livekit.agents.voice.io lazily
+    (avoids slowing module import when running outside the agent).
+    """
+    from livekit.agents.voice import io as _vio
+
+    class _GatedAudioInput(_vio.AudioInput):
+        def __init__(self, src):
+            super().__init__(label="PupsterGate", source=src)
+            self._enabled = True
+
+        def set_enabled(self, enabled: bool) -> None:
+            self._enabled = enabled
+
+        @property
+        def enabled(self) -> bool:
+            return self._enabled
+
+        # NOTE: livekit.agents.voice.io.AudioInput.on_attached has a bug
+        # (`self.on_attached()` instead of `self.source.on_attached()`) which
+        # infinite-recurses if we don't override.  Forward properly here.
+        def on_attached(self) -> None:
+            src = self.source
+            if src is not None:
+                try:
+                    src.on_attached()
+                except Exception:
+                    pass
+
+        def on_detached(self) -> None:
+            src = self.source
+            if src is not None:
+                try:
+                    src.on_detached()
+                except Exception:
+                    pass
+
+        async def __anext__(self):
+            # Always drain upstream; only forward when enabled.  While
+            # disabled this naturally blocks `_forward_audio_task` inside
+            # the loop, so no frames reach OpenAI – no audio billing.
+            while True:
+                frame = await self.source.__anext__()
+                if self._enabled:
+                    return frame
+
+    return _GatedAudioInput(source)
+
+
+def start_gate_watcher(session):
+    """Watch /tmp/pupster_gate and mute/unmute audio without re-creating session.
+
+    Lets pupster_wake.service control when audio is forwarded to the LLM
+    without restarting the agent process – wake response drops from ~10s
+    (full cold start) to ~1s (just OpenAI VAD reaction).
+
+        gate file content   action
+        ─────────────────   ──────────────────────────────
+        AWAKE               forward audio frames to LLM
+        SLEEP               silently discard audio frames
+        (file missing)      treated as AWAKE (backward compatible)
+
+    While SLEEP, the OpenAI Realtime WebSocket stays open but no audio
+    frames are pushed, so no audio-token charges are incurred.
+    """
+    import asyncio
+    from pathlib import Path
+
+    GATE_PATH = Path("/tmp/pupster_gate")
+    POLL_S = 0.2
+
+    def _read_state() -> str:
+        try:
+            if GATE_PATH.exists():
+                return GATE_PATH.read_text().strip().upper() or "AWAKE"
+        except Exception:
+            pass
+        return "AWAKE"
+
+    # We have to wrap session.input.audio AFTER chat_cli has set it. Poll
+    # until the underlying stream appears, then install the wrapper exactly
+    # once. From then on we only flip the wrapper's enabled flag.
+    state = {"gate": None, "wrapper": None}
+
+    async def _watch():
+        # Wait for chat_cli to wire up audio, then wrap it exactly once.
+        installed = False
+        for _ in range(100):  # up to ~10s
+            audio = session.input.audio
+            if audio is not None and not getattr(audio, "label", "") == "PupsterGate":
+                wrapper = _make_gated_audio(audio)
+                session.input.audio = wrapper
+                state["wrapper"] = wrapper
+                installed = True
+                logger.info(f"[gate] installed wrapper around {audio.label!r}")
+                break
+            if audio is not None and getattr(audio, "label", "") == "PupsterGate":
+                state["wrapper"] = audio
+                installed = True
+                break
+            await asyncio.sleep(0.1)
+        if not installed:
+            logger.warning("[gate] timed out waiting for session.input.audio; aborting watcher")
+            return
+
+        # Apply initial state
+        first = _read_state()
+        state["wrapper"].set_enabled(first == "AWAKE")
+        state["gate"] = first
+        logger.info(f"[gate] initial: {first}")
+
+        while True:
+            try:
+                cur = _read_state()
+                if cur != state["gate"]:
+                    state["wrapper"].set_enabled(cur == "AWAKE")
+                    logger.info(f"[gate] {state['gate']} -> {cur}")
+                    state["gate"] = cur
+            except Exception as exc:
+                logger.warning(f"[gate] watch error: {exc}")
+            await asyncio.sleep(POLL_S)
+
+    return asyncio.create_task(_watch(), name="pupster_gate_watcher")
 
 
 def get_pupster_session(agent_design: str):
@@ -236,28 +380,49 @@ class PupsterAgent(Agent):
 
         self.tool_impl = tool_impl
 
+    async def _keep_marker_alive(self) -> None:
+        """Periodically re-create the marker file so GUI always sees agent as ready."""
+        marker = Path("/tmp/pupster_agent_started")
+        while True:
+            try:
+                marker.touch()
+            except Exception:
+                pass
+            await asyncio.sleep(4)
+
     async def on_enter(self) -> None:
         logger.info(f"ON_ENTER. Entering PupsterAgent")
 
-        # Write an empty file to /tmp
+        # Write marker file and keep it alive for GUI status indicator
         tmp_file_path = Path("/tmp/pupster_agent_started")
         try:
             tmp_file_path.touch()
             logger.info(f"Created empty file at {tmp_file_path}")
         except Exception as e:
             logger.error(f"Failed to create empty file at {tmp_file_path}: {e}")
+        asyncio.create_task(self._keep_marker_alive())
 
         chat_ctx = self.chat_ctx.copy()
         chat_ctx.add_message(role="system", content="Say hi to the user and introduce yourself as Pupster.")
         await self.update_chat_ctx(chat_ctx)
         self.session.generate_reply()
 
-    # Waiting on openai and livekit to support images for realtime models
-    # Would work for cascade models
-    # @function_tool
-    # async def get_camera_image(self, context: RunContext):
-    #     """Use this tool to take a picture with Pupster's camera and add it to the conversation."""
-    #     return await self.tool_impl.get_camera_image(context)
+    @function_tool
+    async def get_camera_image(self, context: RunContext):
+        """Take a picture and look at it directly. Use this for quick scene
+        descriptions like "what do you see?", "is there a person nearby?",
+        "describe this room". Much faster (~1-2s) than analyze_camera_image
+        because the image is processed by your own multimodal model — no
+        external Gemini round trip.
+
+        After this tool returns, you will have the image in your context;
+        describe what you observe in your reply.
+
+        Use analyze_camera_image instead when the user wants to navigate to
+        an object (you need the elevation / heading coordinates it provides).
+        """
+        logger.info("FUNCTION CALL: get_camera_image()")
+        return await self.tool_impl.get_camera_image(context)
 
     # all functions annotated with @function_tool will be passed to the LLM when this
     # agent is active

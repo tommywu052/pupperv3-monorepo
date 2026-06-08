@@ -71,8 +71,36 @@ pub fn draw_eye(painter: &egui::Painter, center: Pos2, pupil_offset: Vec2) {
     ));
 }
 
+/// Draw a black mask over the lower portion of the eye to create a "smiling squint" look.
+/// `squint` controls how much of the eye is covered: 0.0 = no mask, 1.0 = fully closed.
+/// A good default for a gentle smile is around 0.55.
+pub fn draw_smile_mask(painter: &egui::Painter, center: Pos2, squint: f32) {
+    let squint = squint.clamp(0.0, 1.0);
+    if squint < 0.01 {
+        return;
+    }
+
+    let mask_color = Color32::BLACK;
+    let eye_radius = 145.0;
+
+    // The arc top edge: higher squint → arc moves further up into the eye.
+    // At squint=0.55 the arc sits roughly at center-y, giving a natural smile.
+    let arc_y = center.y + eye_radius * (1.0 - squint * 2.0);
+
+    let arc_start = Pos2::new(center.x - eye_radius, center.y + 10.0);
+    let arc_ctrl = Pos2::new(center.x, arc_y);
+    let arc_end = Pos2::new(center.x + eye_radius, center.y + 10.0);
+
+    let mut pts = quadratic_bezier_points(arc_start, arc_ctrl, arc_end, 32);
+    // Close the polygon by adding bottom corners
+    let bottom = center.y + eye_radius + 20.0;
+    pts.push(Pos2::new(center.x + eye_radius, bottom));
+    pts.push(Pos2::new(center.x - eye_radius, bottom));
+
+    painter.add(Shape::convex_polygon(pts, mask_color, Stroke::NONE));
+}
+
 pub fn draw_eyebrow(painter: &egui::Painter, center: Pos2) {
-    // Eyebrow (slight arch) - now separate function to draw on top layer
     let brow_col = Color32::from_rgb(0x33, 0x36, 0x3c);
     let brow_start = center + Vec2::new(-88.0, -150.0);
     let brow_ctrl = center + Vec2::new(0.0, -195.0);

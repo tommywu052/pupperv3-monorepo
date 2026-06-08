@@ -1,5 +1,5 @@
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument
+from launch.actions import DeclareLaunchArgument, TimerAction
 from launch.substitutions import (
     Command,
     FindExecutable,
@@ -208,6 +208,22 @@ def generate_launch_description():
         ],
     )
 
+    # Jazzy ros2_control subscribes to /robot_description topic (transient local).
+    # Delay control stack until robot_state_publisher has published URDF (~xacro ~5s on Pi).
+    control_stack = TimerAction(
+        period=8.0,
+        actions=[
+            control_node,
+            robot_controller_spawner,
+            three_legged_robot_controller_spawner,
+            forward_position_controller_spawner,
+            forward_kp_controller_spawner,
+            forward_kd_controller_spawner,
+            joint_state_broadcaster_spawner,
+            imu_sensor_broadcaster_spawner,
+        ],
+    )
+
     foxglove_bridge = Node(
         package="foxglove_bridge",
         executable="foxglove_bridge",
@@ -247,10 +263,61 @@ def generate_launch_description():
         condition=IfCondition(LaunchConfiguration("bag_recorder")),
     )
 
-    imu_to_tf_node = Node(
-        package="imu_to_tf",
-        executable="imu_to_tf_node",
+    declare_odom_ekf_arg = DeclareLaunchArgument(
+        name="odom_ekf",
+        default_value="True",
+        description=(
+            "Enable robot_localization EKF when installed. "
+            "Default True fuses IMU + /odom/raw for SLAM/navigation."
+        ),
+    )
+
+    ekf_config = PathJoinSubstitution(
+        [FindPackageShare("pupper_odometry"), "config", "baselink_to_odom.yaml"]
+    )
+
+    imu_madgwick_node = Node(
+        package="pupper_odometry",
+        executable="imu_madgwick_node",
+        name="imu_madgwick_node",
         output="both",
+        parameters=[{
+            "input_topic": "/imu_sensor_broadcaster/imu",
+            "output_topic": "/imu/data_filtered",
+            "gain": 0.033,
+            "max_rate": 100.0,
+        }],
+        condition=IfCondition(LaunchConfiguration("odom_ekf")),
+    )
+
+    dead_reckoning_with_tf = Node(
+        package="pupper_odometry",
+        executable="dead_reckoning_node",
+        output="both",
+        parameters=[{"publish_tf": True, "publish_odom": True, "use_imu_yaw": False}],
+        condition=UnlessCondition(LaunchConfiguration("odom_ekf")),
+    )
+
+    dead_reckoning_raw_only = Node(
+        package="pupper_odometry",
+        executable="dead_reckoning_node",
+        output="both",
+        parameters=[{
+            "publish_tf": False,
+            "publish_odom": False,
+            "use_imu_yaw": False,
+        }],
+        condition=IfCondition(LaunchConfiguration("odom_ekf")),
+    )
+
+    ekf_node = Node(
+        package="robot_localization",
+        executable="ekf_node",
+        name="ekf_filter_node",
+        output="both",
+        parameters=[ekf_config],
+        remappings=[("/odometry/filtered", "/odom")],
+        condition=IfCondition(LaunchConfiguration("odom_ekf")),
     )
 
     animation_controller_py_node = Node(
@@ -290,16 +357,7 @@ def generate_launch_description():
     #
     nodes = [
         robot_state_publisher,
-        control_node,
-        robot_controller_spawner,
-        three_legged_robot_controller_spawner,
-        # Forward command controllers for animation
-        forward_position_controller_spawner,
-        forward_kp_controller_spawner,
-        forward_kd_controller_spawner,
-        joint_state_broadcaster_spawner,
-        # Comment/uncomment as needed:
-        imu_sensor_broadcaster_spawner,
+        control_stack,
         foxglove_bridge,
         joy_util_node,
         # joy_node,
@@ -308,7 +366,10 @@ def generate_launch_description():
         camera_node,
         cmd_vel_mux_node,
         bag_recorder_node,
-        imu_to_tf_node,
+        dead_reckoning_with_tf,
+        dead_reckoning_raw_only,
+        imu_madgwick_node,
+        ekf_node,
         animation_controller_py_node,
         joint_state_throttler,
         # Detection
@@ -320,4 +381,10 @@ def generate_launch_description():
     #
     # 8. Return the LaunchDescription with the declared arg + all nodes
     #
-    return LaunchDescription([declare_sim_arg, declare_teleop_arg, declare_bag_recorder_arg, *nodes])
+    return LaunchDescription([
+        declare_sim_arg,
+        declare_teleop_arg,
+        declare_bag_recorder_arg,
+        declare_odom_ekf_arg,
+        *nodes,
+    ])

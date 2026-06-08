@@ -346,6 +346,27 @@
             </geometry>
         </visual>
     </link>
+    <link name="lidar_link">
+        <visual name="ld06_visual">
+            <!-- scan origin is ~27mm above mount; shift mesh down so housing sits on head deck -->
+            <origin xyz="0 0 -0.011" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.0195" length="0.033" />
+            </geometry>
+        </visual>
+        <collision name="ld06_collision">
+            <origin xyz="0 0 -0.011" rpy="0 0 0" />
+            <geometry>
+                <cylinder radius="0.0195" length="0.033" />
+            </geometry>
+        </collision>
+    </link>
+    <joint name="base_link_to_lidar" type="fixed">
+        <parent link="base_link" />
+        <child link="lidar_link" />
+        <!-- head deck z~0.096 at x=0.057, +27mm to scan center -->
+        <origin xyz="0.057 0 0.123" rpy="0 0 0" />
+    </joint>
     <joint name="world_to_body" type="floating">
         <parent link="world" />
         <child link="base_link" />

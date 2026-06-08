@@ -11,7 +11,7 @@ mod ui;
 
 use config::{Config, load_config, print_config_info};
 use detection::DetectionReceiver;
-use eyes::{BlinkState, EyeTracker, draw_eye, draw_eyebrow};
+use eyes::{BlinkState, ExpressionState, EyeTracker, draw_eye, draw_eyebrow, draw_smile_mask};
 use system::{
     BagRecorderMonitor, BatteryMonitor, CpuMonitor, InternetMonitor, LlmServiceMonitor,
     ServiceMonitor,
@@ -32,6 +32,7 @@ struct Args {
 struct ImageApp {
     config: Config,
     blink_state: BlinkState,
+    expression_state: ExpressionState,
     bag_recorder_monitor: BagRecorderMonitor,
     battery_monitor: BatteryMonitor,
     cpu_monitor: CpuMonitor,
@@ -56,6 +57,7 @@ impl ImageApp {
         Ok(Self {
             config,
             blink_state: BlinkState::new(),
+            expression_state: ExpressionState::new(),
             bag_recorder_monitor: BagRecorderMonitor::new(),
             battery_monitor: BatteryMonitor::new(),
             cpu_monitor: CpuMonitor::new(),
@@ -100,6 +102,10 @@ impl ImageApp {
                 // Draw eyes (with pupil tracking)
                 draw_eye(&painter, left_eye_center, pupil_offset);
                 draw_eye(&painter, right_eye_center, pupil_offset);
+
+                let smile_amount = self.expression_state.squint();
+                draw_smile_mask(&painter, left_eye_center, smile_amount);
+                draw_smile_mask(&painter, right_eye_center, smile_amount);
 
                 // Draw blinking animation (black boxes coming down)
                 self.blink_state.draw_blink_boxes(
@@ -240,6 +246,7 @@ impl App for ImageApp {
         self.llm_service_monitor.update(&self.config.service);
         self.internet_monitor.update(&self.config.service);
         self.blink_state.update(&self.config.blink);
+        self.expression_state.update();
 
         // Draw UI
         self.draw_main_ui(ctx);

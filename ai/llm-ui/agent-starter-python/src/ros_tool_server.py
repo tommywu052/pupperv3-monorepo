@@ -323,23 +323,40 @@ class RosToolServer():
 
         self.node.get_logger().info("ROS Tool Server has been started.")
 
-    async def get_camera_image(self, context: Any) -> Dict[str, Any]:
+    async def get_camera_image(self, context: Any) -> Tuple[bool, str]:
+        """Inject the latest camera frame into the realtime LLM's chat context.
+
+        Uses inference_detail="low" so OpenAI server-side downscales to ~512px
+        and bills the cheap fixed-cost tier (~85 tokens vs ~700+ for high).
+        End-to-end this is ~1-2s vs Gemini analyze_camera_image's ~4s.
+        """
         from livekit.agents.llm import ImageContent
 
+        start_time = time.time()
         self.node.get_logger().info("FUNCTION CALL: get_camera_image")
 
-        latest_ros_compressed_img_msg = self.latest_image_queue.get_nowait()
+        try:
+            latest_ros_compressed_img_msg = self.latest_image_queue.get_nowait()
+        except queue.Empty:
+            return False, "No camera image available yet — try again in a moment."
+
         b64 = base64.b64encode(latest_ros_compressed_img_msg.data).decode("utf-8")
         ctx = context.session.current_agent.chat_ctx.copy()
         ctx.add_message(
             role="user",
-            content=[ImageContent(image=f"data:image/jpeg;base64,{b64}")],
+            content=[
+                ImageContent(
+                    image=f"data:image/jpeg;base64,{b64}",
+                    inference_detail="low",
+                )
+            ],
         )
-        self.node.get_logger().info(f"Adding image to conversation, size: {len(b64)} bytes.....")
         await context.session.current_agent.update_chat_ctx(ctx)
-        # log image number of bytes
-        self.node.get_logger().info(f"Added image to conversation, size: {len(b64)} bytes")
-        return True, "Image added to conversation"
+        elapsed = time.time() - start_time
+        self.node.get_logger().info(
+            f"get_camera_image done: {len(b64)} b64 chars, took {elapsed:.3f}s"
+        )
+        return True, "Image added to conversation. Describe what you observe."
 
     # TODO: LLM might want to start the queue processor explicitly so it can control when commands start executing.
     # For now, we can start it automatically when the server is created.
@@ -551,23 +568,33 @@ class RosToolServer():
 
     async def activate_person_following(self) -> Tuple[bool, str]:
         self.node.get_logger().info("Activating person following...")
+        if not self.activate_person_following_client.service_is_ready():
+            self.node.get_logger().warn("activate_person_following service not available, skipping")
+            return False, "Person following service not available (no Hailo NPU?)"
         fut = self.activate_person_following_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self.node, fut)
+        rclpy.spin_until_future_complete(self.node, fut, timeout_sec=3.0)
         if fut.result() is not None:
             self.following_mode_status = "active"
             return fut.result().success, fut.result().message
         else:
-            return False, "Failed to call activate_person_following service"
+            return False, "activate_person_following service call timed out"
 
     async def deactivate_person_following(self) -> Tuple[bool, str]:
+        if self.following_mode_status != "active":
+            return True, "Person following already inactive"
         self.node.get_logger().info("Deactivating person following...")
+        if not self.deactivate_person_following_client.service_is_ready():
+            self.node.get_logger().warn("deactivate_person_following service not available, skipping")
+            self.following_mode_status = "inactive"
+            return True, "Person following service not available, marked inactive"
         fut = self.deactivate_person_following_client.call_async(Trigger.Request())
-        rclpy.spin_until_future_complete(self.node, fut)
+        rclpy.spin_until_future_complete(self.node, fut, timeout_sec=3.0)
         if fut.result() is not None:
             self.following_mode_status = "inactive"
             return fut.result().success, fut.result().message
         else:
-            return False, "Failed to call deactivate_person_following service"
+            self.following_mode_status = "inactive"
+            return False, "deactivate_person_following service call timed out"
 
     async def analyze_camera_image(self, prompt: str, context: Any) -> Tuple[bool, str]:
         self.node.get_logger().info(f"FUNCTION CALLED: analyze_camera_image(prompt={prompt})")

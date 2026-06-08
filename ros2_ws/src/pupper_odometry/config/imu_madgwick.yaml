@@ -1,0 +1,13 @@
+# Madgwick IMU filter — smooth orientation before EKF (Mini Pupper pattern).
+imu_filter_madgwick:
+  ros__parameters:
+    use_mag: false
+    world_frame: enu
+    fixed_frame: odom
+    publish_tf: false
+    reverse_tf: false
+    constant_dt: 0.0
+    publish_debug_topics: false
+    gain: 0.033
+    zeta: 0.0
+    remove_gravity_vector: true

@@ -22,7 +22,7 @@ from livekit.agents import (
 )
 from livekit.agents import UserInputTranscribedEvent
 
-from pupster import PupsterAgent, get_pupster_session
+from pupster import PupsterAgent, get_pupster_session, start_gate_watcher
 from ros_tool_server import RosToolServer
 
 load_dotenv(".env.local")
@@ -104,6 +104,10 @@ async def entrypoint(ctx: JobContext):
         room=ctx.room,
         room_input_options=RoomInputOptions(),
     )
+
+    # Wake-word gating: lets pupster_wake.service mute/unmute the audio
+    # input without restarting the whole agent process. See pupster.py.
+    start_gate_watcher(session)
 
     # Join the room and connect to the user
     await ctx.connect()
