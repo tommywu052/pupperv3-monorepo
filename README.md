@@ -14,13 +14,14 @@ Everything below runs on the **Raspberry Pi 5** (`robot.service` + companion sys
 ├─────────────────────────────────────────────────────────────────────────────┤
 │  SYSTEMD SERVICES                                                           │
 │  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐   │
-│  │ robot.svc    │  │pupster-wake  │  │ llm-agent    │  │ pupper-rs    │   │
-│  │ neural_ctrl  │  │ OpenWakeWord │  │ LiveKit agent│  │ Rust eyes/UI │   │
-│  │ LiDAR/camera │  │ "Hey Jarvis" │  │ STT→LLM→TTS  │  │ status panel │   │
-│  │ EKF/odom     │  └──────┬───────┘  └──────┬───────┘  └──────────────┘   │
-│  │ animation    │         │ touch gate       │ ROS tools                     │
-│  └──────┬───────┘         ▼                  ▼                               │
-│         │          /tmp/pupster_gate    /llm_cmd_vel, animations, …         │
+│  │ robot.svc    │  │pupster-wake  │  │ llm-agent    │  │ pupper-bridge│   │
+│  │ neural_ctrl  │  │ OpenWakeWord │  │ LiveKit agent│  │ HTTP :8095   │   │
+│  │ LiDAR/camera │  │ "Hey Jarvis" │  │ STT→LLM→TTS  │  │ OpenClaw API │   │
+│  │ EKF/odom     │  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘   │
+│  │ animation    │         │ gate           │ ROS tools        │ REST→ROS  │
+│  └──────┬───────┘         ▼                ▼                  ▼           │
+│         │          /tmp/pupster_gate   /llm_cmd_vel      move/TTS/VLM     │
+│         │                                              pupper-rs (GUI)   │
 ├─────────┴───────────────────────────────────────────────────────────────────┤
 │  ROS 2 GRAPH (always-on via robot.sh)                                       │
 │                                                                             │
@@ -68,19 +69,50 @@ USB mic → pupster_wake ("Hey Jarvis") → /tmp/pupster_gate
 | Vision | Fast: `get_camera_image` (~1–2s); Nav: `analyze_camera_image` + Gemini (~4s) |
 | Operator runbook | `PUPSTER_NOTES.md` *(local workspace reference)* |
 
-### API / adapter layer
+### HTTP bridge (OpenClaw / remote control) — `pi_home/`
 
-There is **no separate “OpenClaw” package** in this repo. Robot-facing adapters are:
+**English:** `pupper-bridge.service` runs `/home/pi/pupper_bridge.py` — FastAPI on port **8095** for **OpenClaw**, Jetson Thor, or any HTTP client. Endpoints: move/stand/animation, TTS (DashScope or CosyVoice on Thor), camera capture/describe (VLM). Separate from on-robot Pupster voice (`llm-agent`).
+
+**中文：** Pi 上的 HTTP 橋接器供 **OpenClaw 等外部 agent** 呼叫，不走 LiveKit。TTS 可走 DashScope 或 Thor 上的 CosyVoice；`/camera/describe` 回文字描述（避免大圖塞爆 OpenClaw context）。
+
+| Path | Role |
+|------|------|
+| **`pi_home/`** | `pupper_bridge.py`, TTS workers, systemd example — [README](pi_home/README.md) |
+| Deploy on Pi | Copy to `/home/pi/`; `systemctl enable pupper-bridge.service` |
+
+### In-monorepo adapters (ROS / web UI)
 
 | Package | Role |
 |---------|------|
-| `llm_websocket_server` | WebSocket API (`localhost:8765`) for the live-audio web UI — activate/move/status |
+| `llm_websocket_server` | WebSocket (`localhost:8765`) for live-audio web UI |
 | `openai_bridge` | Legacy OpenAI Realtime + eye animation helpers |
-| `ros_tool_server` | Tool calls from the LiveKit agent into ROS (cmd_vel, camera, animations) |
+| `ros_tool_server` | LiveKit **Pupster** tool calls → ROS (inside `llm-agent`) |
 
 ### Rust UI (`pupper-rs`)
 
 Desktop/robot status UI (eyes, service health, ROS topic checks). Deploy from your local `scripts_local/deploy_pupper_gui.py` if present.
+
+---
+
+## Pi overlay workspaces (`pi_overlay/`)
+
+On the Pi, two **extra colcon workspaces** live under `/home/pi/` (not inside this monorepo tree). We track **vcstool manifests + docs**, not `build/`/`install/` (~780MB for Nav2).
+
+| Pi path | Repo | Purpose |
+|---------|------|---------|
+| `/home/pi/nav2_ws` | [pi_overlay/nav2_ws](pi_overlay/nav2_ws/) | Nav2 + BehaviorTree.CPP source build (Jazzy) |
+| `/home/pi/ldlidar_ros2_ws` | [pi_overlay/ldlidar_ros2_ws](pi_overlay/ldlidar_ros2_ws/) | LD06 driver → `/scan` |
+
+Source order used by `pi_start_nav.sh`:
+
+```bash
+source /opt/ros/jazzy/setup.bash
+source ~/ldlidar_ros2_ws/install/setup.bash
+source ~/nav2_ws/install/setup.bash
+source ~/pupperv3-monorepo/ros2_ws/install/setup.bash
+```
+
+Build: `scripts_local/build_nav2_source_pi.py`; LiDAR: `vcs import` + `colcon build` per overlay README.
 
 ---
 
@@ -153,7 +185,8 @@ Typical services on Pi:
 ```text
 robot.service          # robot.sh → neural_controller launch (odom_ekf:=True)
 pupster-wake.service   # wake word → /tmp/pupster_gate
-llm-agent.service      # LiveKit Pupster agent
+llm-agent.service      # LiveKit Pupster agent (on-robot voice)
+pupper-bridge.service  # HTTP API :8095 for OpenClaw / remote control
 pupper-rs.service      # Rust UI (optional)
 ```
 
@@ -195,6 +228,9 @@ Wake-word (`pupster_wake/`), odom/EKF deploy, TTS tuning, SSH helpers, and other
 
 - Upstream hardware/software: [Pupper v3 documentation](https://pupper-v3-documentation.readthedocs.io/en/latest/)
 - Nav2 on Pi: `NAV2_RUNBOOK.md`
+- OpenClaw / HTTP bridge: `pi_home/README.md`
+- Pi overlay workspaces: `pi_overlay/README.md`
+- Pupster voice agent: `ai/llm-ui/agent-starter-python/README.md`
 - SLAM / LiDAR integration log: `cursor_lidar_integration_and_verificati.md`
 
 ---

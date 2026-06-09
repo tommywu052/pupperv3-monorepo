@@ -1,0 +1,30 @@
+[Unit]
+Description=Pupper HTTP Bridge (Robot Control / OpenClaw API)
+After=network.target robot.service
+Wants=robot.service
+
+[Service]
+Type=simple
+User=pi
+Environment=PUPPER_BRIDGE_HOST=0.0.0.0
+Environment=PUPPER_BRIDGE_PORT=8095
+Environment=DASHSCOPE_API_KEY=
+Environment=OPENTALKING_QWEN_TTS_WS_URL=wss://dashscope-intl.aliyuncs.com/api-ws/v1/realtime
+Environment=OPENTALKING_TTS_VOICE=Kai
+Environment=TTS_BACKEND=dashscope
+Environment=COSYVOICE_TTS_URL=http://192.168.31.52:50000/tts
+Environment=COSYVOICE_SPK_ID=default
+Environment=LLM_API_KEY=
+Environment=LLM_BASE_URL=http://192.168.31.52:8882/v1
+Environment=LLM_MODEL=nemotron
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus
+Environment=PULSE_RUNTIME_PATH=/run/user/1000/pulse
+Environment=HOME=/home/pi
+WorkingDirectory=/home/pi
+ExecStart=/bin/bash -lc 'source /opt/ros/jazzy/setup.bash && source /home/pi/pupperv3-monorepo/ros2_ws/install/setup.bash && python3 /home/pi/pupper_bridge.py'
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

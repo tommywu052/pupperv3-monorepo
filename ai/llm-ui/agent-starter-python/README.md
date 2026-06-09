@@ -1,7 +1,7 @@
 # Pupster / Jarvis Voice Agent (Pupper v3)
 
-LiveKit-based voice AI for the Pupper v3 robot on Raspberry Pi 5.  
-基於 LiveKit 的 Pupper v3 語音 AI（Jarvis / Pupster），部署於 Raspberry Pi 5。
+LiveKit-based **on-robot voice** for Raspberry Pi 5.  
+Pi 上常駐的 **喚醒詞 + 對話 agent**（LiveKit），與 `/home/pi/pupper_bridge.py` HTTP 橋（OpenClaw 用）是**不同服務** — 見 [pi_home/README.md](../../pi_home/README.md)。
 
 This package replaces the upstream LiveKit starter template with a **production on-robot stack**: wake word, pre-warm gating, OpenAI Realtime LLM, DashScope Qwen TTS, and ROS 2 tool calls for locomotion, animations, and vision.
 
@@ -213,6 +213,7 @@ DashScope TTS: voice=... model=qwen3-tts-vc-realtime-2026-01-15 ...
 5. **Vision dual-path** — fast `get_camera_image` (Realtime) vs slow `analyze_camera_image` (Gemini + unwarp).
 6. **ROS tools** — locomotion, animations, battery, person-following hooks via `ros_tool_server`.
 7. **USB audio** — PipeWire default sink for USB speaker; mic via `PUPSTER_MIC=pulse` in wake service.
+8. **OpenClaw** uses separate HTTP bridge (`pi_home/pupper_bridge.py`), not this LiveKit stack — both can run on the same Pi.
 
 For detailed operator notes (homing, battery, quirks): see `PUPSTER_NOTES.md` in the workspace root (local reference doc).
 
