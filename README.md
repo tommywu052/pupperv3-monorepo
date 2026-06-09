@@ -33,43 +33,40 @@ Everything below runs on the **Raspberry Pi 5** (`robot.service` + companion sys
 │  └────────────┘      │     filtered    │       │ pupper_nav      │ (manual) │
 │                      │ EKF → /odom     │       │ Nav2 AMCL       │          │
 │                      │  odom→base_link │       │ planner+DWB     │          │
-│                      └─────────────────┘       │  → /nav_cmd_vel*│          │
+│                      └─────────────────┘       │  → /nav_cmd_vel │          │
 │                                                └─────────────────┘          │
 │  Control                                                                    │
 │  ┌──────────────────────────────────────────────────────────────┐           │
-│  │ cmd_vel_mux: teleop | llm | person_following | nav (planned) │           │
+│  │ cmd_vel_mux: teleop > nav > llm > person_following           │           │
 │  │      → /cmd_vel → neural_controller (RTNeural policy)        │           │
 │  │ animation_controller_py (CSV tricks at waypoints)            │           │
 │  └──────────────────────────────────────────────────────────────┘           │
 └─────────────────────────────────────────────────────────────────────────────┘
-
-* `/nav_cmd_vel` wiring in cmd_vel_mux is in progress; see `pupper_nav` + `NAV2_RUNBOOK.md`.
 ```
 
-### Audio / voice pipeline (Pupster)
+Nav2 publishes to `/nav_cmd_vel`; `pupper_nav/launch/nav.launch.py` remaps `cmd_vel` accordingly.  
+`cmd_vel_mux` priority is configured in `neural_controller/launch/config.yaml` (teleop highest).
 
-Pre-warm gating keeps the LLM agent hot without burning idle API tokens:
+### Audio / voice pipeline (Pupster / Jarvis)
+
+**English:** Three services — `pupster-wake` (OpenWakeWord) → `/tmp/pupster_gate` → `llm-agent` (LiveKit, pre-warmed with gated mic) → ROS tools. TTS uses **DashScope Qwen Realtime** (replaced Cartesia after quota exhaustion). STT/LLM default: **OpenAI Realtime** (`gpt-realtime`).
+
+**中文：** 三服務架構 — 喚醒詞常駐 → gate 檔 IPC → llm-agent 預熱（閒置不送 audio 以省 API）。TTS 已改 **DashScope Qwen Realtime**；LLM 預設 **OpenAI Realtime**。語音可驅動 `/llm_cmd_vel`、特技動畫、相機工具。
 
 ```
-USB mic (BOYALINK)
-    → pupster_wake (OpenWakeWord, always listening)
-    → touch /tmp/pupster_gate
-    → llm-agent (LiveKit Agents, gated audio input)
-         STT  → LLM (OpenAI Realtime / Gemini)
-         TTS  → DashScope Qwen Realtime (replaces Cartesia)
-    → USB speaker (PipeWire default sink)
-    → ROS tool calls via ros_tool_server (/llm_cmd_vel, animations, camera tools)
+USB mic → pupster_wake ("Hey Jarvis") → /tmp/pupster_gate
+       → llm-agent: OpenAI Realtime (STT+LLM) + dashscope_tts (TTS)
+       → ros_tool_server → /llm_cmd_vel, animations, camera
+       → USB speaker (PipeWire)
 ```
 
-Key files:
-
-| Component | Path |
-|-----------|------|
-| Wake word service | `scripts_local/pupster_wake/` *(local dev only, not in repo)* |
-| LiveKit agent | `ai/llm-ui/agent-starter-python/src/agent.py`, `pupster.py` |
-| DashScope TTS plugin | `ai/llm-ui/agent-starter-python/src/dashscope_tts.py` |
-| ROS tool bridge | `ai/llm-ui/agent-starter-python/src/ros_tool_server.py` |
-| Operator notes (TTS migration, voice clone, tuning) | see repo root `PUPSTER_NOTES.md` if copied locally |
+| Topic | 說明 |
+|-------|------|
+| Wake deploy | `scripts_local/pupster_wake/` *(local only)* |
+| Full agent docs | **`ai/llm-ui/agent-starter-python/README.md`** |
+| TTS plugin | `ai/llm-ui/agent-starter-python/src/dashscope_tts.py` |
+| Vision | Fast: `get_camera_image` (~1–2s); Nav: `analyze_camera_image` + Gemini (~4s) |
+| Operator runbook | `PUPSTER_NOTES.md` *(local workspace reference)* |
 
 ### API / adapter layer
 
@@ -87,7 +84,7 @@ Desktop/robot status UI (eyes, service health, ROS topic checks). Deploy from yo
 
 ---
 
-## SLAM development (this fork)
+## SLAM
 
 Built on **slam_toolbox** async online mapping, aligned with Mini Pupper patterns:
 
@@ -106,7 +103,7 @@ CPU notes: run SLAM **without** Foxglove connected during long mapping sessions;
 
 ---
 
-## Navigation development (this fork)
+## Navigation
 
 Nav2 runs **on the Pi** (source-built for Jazzy on Pi OS — no Noble apt packages):
 
@@ -178,7 +175,7 @@ cd ros2_ws && source build.sh
 
 ## `scripts_local/` (repo subset)
 
-This fork tracks **navigation/SLAM deployment helpers only** (9 files):
+The repo tracks **navigation/SLAM deployment helpers only** (9 files):
 
 | File | Purpose |
 |------|---------|
