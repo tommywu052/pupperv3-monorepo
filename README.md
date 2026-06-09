@@ -6,10 +6,9 @@ Fork of the [Pupper v3 monorepo](https://github.com/Nate711/pupperv3-monorepo) w
 
 ## Demo — Nav2 AMCL on real robot / 實機 Nav2 導航
 
-![Nav2 AMCL demo preview](docs/pupperv3_amcl_nav2_preview.gif)
-
 <p align="center">
-  <img src="docs/pupperv3_amcl_nav2_demo.jpg" alt="Pupper V3 Nav2 AMCL — RViz map and on-robot UI" width="480"/>
+  <img src="docs/pupperv3_amcl_nav2_preview.gif" alt="Nav2 AMCL demo preview" width="560"/><br/>
+  <img src="docs/pupperv3_amcl_nav2_demo.jpg" alt="Pupper V3 Nav2 AMCL — on-robot" width="560"/>
 </p>
 
 [Click here — original demo video](docs/pupperv3_amcl_nav2.mp4)
