@@ -4,6 +4,18 @@ Fork of the [Pupper v3 monorepo](https://github.com/Nate711/pupperv3-monorepo) w
 
 ---
 
+## Demo — Nav2 AMCL on real robot / 實機 Nav2 導航
+
+[![Pupper V3 Nav2 AMCL — click screenshot to open demo video](docs/pupperv3_amcl_nav2_demo.jpg)](docs/pupperv3_amcl_nav2.mp4)
+
+**[▶ 觀看示範影片 / Watch demo video (MP4)](docs/pupperv3_amcl_nav2.mp4)** (~10 MB — GitHub 內建播放器可直接播放)
+
+*AMCL on map `pupper_map_ekf_v1`: RViz costmap + global plan (left), Pupster UI with ROS/LLM/battery (right). Goal via `pi_nav_goal.sh` → DWB → `/nav_cmd_vel` → `cmd_vel_mux`.*
+
+**中文：** Pi 上完整 Nav2 自主導航（AMCL 定位、全域路徑、局部 DWB）。點上方截圖或連結開啟 MP4。
+
+---
+
 ## Full RPi system architecture
 
 Everything below runs on the **Raspberry Pi 5** (`robot.service` + companion systemd units). There is no separate PC required for SLAM or Nav2 in the current deployment.
@@ -137,21 +149,7 @@ CPU notes: run SLAM **without** Foxglove connected during long mapping sessions;
 
 ## Navigation
 
-### Demo / 實機展示
-
-![Pupper V3 Nav2 AMCL — RViz map + on-robot UI](docs/pupperv3_amcl_nav2_demo.jpg)
-
-*AMCL localization on saved map `pupper_map_ekf_v1`: RViz costmap/global plan (left) and Pupster UI with ROS / LLM / battery status (right).*
-
-<video src="docs/pupperv3_amcl_nav2.mp4" controls width="720">
-  <a href="docs/pupperv3_amcl_nav2.mp4">Download Nav2 AMCL demo (MP4)</a>
-</video>
-
-**English:** Real-robot Nav2 with AMCL on the Pi — goal sent via `pi_nav_goal.sh`, DWB local planner, `/nav_cmd_vel` into `cmd_vel_mux`.
-
-**中文：** Pi 上完整 Nav2 自主導航示範（AMCL 定位、全域路徑、局部 DWB），速度經 `/nav_cmd_vel` 進入 `cmd_vel_mux`。
-
----
+See **[Demo](#demo--nav2-amcl-on-real-robot--實機-nav2-導航)** above for screenshot and MP4.
 
 Nav2 runs **on the Pi** (source-built for Jazzy on Pi OS — no Noble apt packages):
 
