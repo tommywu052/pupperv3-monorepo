@@ -6,31 +6,11 @@ Fork of the [Pupper v3 monorepo](https://github.com/Nate711/pupperv3-monorepo) w
 
 ## Demo — Nav2 AMCL on real robot / 實機 Nav2 導航
 
-![Nav2 AMCL demo — inline preview (GIF loops on GitHub)](docs/pupperv3_amcl_nav2_preview.gif)
+<p align="center">
+  <img src="docs/pupperv3_amcl_nav2_demo.jpg" alt="Pupper V3 Nav2 AMCL — RViz map and on-robot UI" width="720"/>
+</p>
 
-*AMCL on map `pupper_map_ekf_v1`: RViz costmap + global plan (left), Pupster UI with ROS/LLM/battery (right). Goal via `pi_nav_goal.sh` → DWB → `/nav_cmd_vel` → `cmd_vel_mux`.*
-
-| 觀看方式 | 說明 |
-|----------|------|
-| **README 內預覽** | 上方 GIF 在 GitHub 頁面會自動循環播放（完整 26s 精華） |
-| **完整 MP4（GitHub 播放器）** | [在 repo 內開啟並播放](https://github.com/tommywu052/pupperv3-monorepo/blob/main/docs/pupperv3_amcl_nav2.mp4) — 進入檔案頁後按 ▶，不要右鍵「另存新檔」 |
-| **README 內嵌可播 MP4** | 見下方「一次設定」；需 GitHub Issue 附件 URL |
-
-<details>
-<summary><strong>一次設定：讓 README 內嵌完整 MP4 播放器（GitHub 官方做法）</strong></summary>
-
-GitHub README **無法**直接嵌入 repo 裡的 `.mp4`（連結常變成下載）。若要 README 頁面內出現可播的完整影片：
-
-1. 開啟 [New Issue](https://github.com/tommywu052/pupperv3-monorepo/issues/new)（可立刻關閉，不必真的提 issue）
-2. 把 `docs/pupperv3_amcl_nav2.mp4` **拖進**留言框，等上傳完成
-3. 複製產生的 URL，格式如 `https://github.com/user-attachments/assets/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`
-4. 在 README 的 Demo 區 **單獨一行**貼上該 URL → GitHub 會渲染成內嵌 `<video>` 播放器
-
-若已有 **YouTube / Bilibili** 非公開連結，也可貼在這裡，README 可改為 `[![Demo](docs/pupperv3_amcl_nav2_demo.jpg)](https://youtu.be/…)` 點擊即線上播放。
-
-</details>
-
-**中文：** 上方 GIF 可在 GitHub README 直接看；要原畫質 MP4 請用表格第二列的檔案頁播放，或依折疊說明用 Issue 附件取得內嵌播放器。
+[Click here — original demo video](docs/pupperv3_amcl_nav2.mp4)
 
 ---
 
