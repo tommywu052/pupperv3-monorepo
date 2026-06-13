@@ -192,8 +192,10 @@ Full procedure: **`NAV2_RUNBOOK.md`**.
 ## Isaac Lab RL locomotion (`ai/isaac_lab/`)
 
 <p align="center">
-  <video src="https://github.com/tommywu052/pupperv3-monorepo/raw/main/docs/isaac_rl_result_pupper.mp4" controls muted loop width="720"></video>
+  <img src="docs/isaac_rl_result_pupper.gif" width="720" alt="Pupper v3 Isaac Lab RL locomotion demo">
 </p>
+
+<p align="center"><a href="docs/isaac_rl_result_pupper.mp4">▶ Full-quality video (MP4)</a></p>
 
 **English:** An alternative locomotion-policy pipeline: port the Pupper v3 walking policy from MJX (MuJoCo) to **NVIDIA Isaac Lab (PhysX GPU + rsl_rl PPO)**, export to **ONNX**, and run it on the Pi with onnxruntime as a drop-in replacement for the C++ `neural_controller` (RTNeural). Reaches natural omnidirectional walking under keyboard/joystick teleop; the deployment node reuses the existing ros2_control interfaces (no C++ changes).
 
