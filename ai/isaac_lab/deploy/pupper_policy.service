@@ -1,0 +1,19 @@
+[Unit]
+Description=Pupper Isaac Lab ONNX policy (joystick teleop)
+# Needs robot.service up first (ros2_control, /joy, /joint_states, /imu).
+After=robot.service
+Wants=robot.service
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/pupper_policy
+Environment="ROS_LOCALHOST_ONLY=1"
+Environment="HOME=/home/pi"
+# Give the control stack (8s TimerAction in launch.py) time to spawn controllers.
+ExecStartPre=/bin/sleep 15
+ExecStart=/home/pi/pupper_policy/pupper_policy.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -189,6 +189,23 @@ Full procedure: **`NAV2_RUNBOOK.md`**.
 
 ---
 
+## Isaac Lab RL locomotion (`ai/isaac_lab/`)
+
+**English:** An alternative locomotion-policy pipeline: port the Pupper v3 walking policy from MJX (MuJoCo) to **NVIDIA Isaac Lab (PhysX GPU + rsl_rl PPO)**, export to **ONNX**, and run it on the Pi with onnxruntime as a drop-in replacement for the C++ `neural_controller` (RTNeural). Reaches natural omnidirectional walking under keyboard/joystick teleop; the deployment node reuses the existing ros2_control interfaces (no C++ changes).
+
+**中文：** 把行走 policy 從 MJX 移植到 **Isaac Lab** 訓練、匯出 **ONNX**，在 Pi 上用 onnxruntime 推論，取代 RTNeural C++ controller。含完整 sim2real 配方與踩坑（關節順序錯位、致動延遲 + gain randomization、搖桿 e-stop 放軟）。
+
+| Item | Location |
+|------|----------|
+| Overview + sim2real guide | **`ai/isaac_lab/README.md`** ([English](ai/isaac_lab/README.en.md)) |
+| Training / export / contract-check | `ai/isaac_lab/scripts/` (`train.py`, `play.py`, `check_contract.py`) |
+| Env cfg + sim2real DR | `ai/isaac_lab/pupper_isaaclab/tasks/locomotion/` |
+| Pi inference node + systemd | `ai/isaac_lab/deploy/` (`pupper_onnx_node.py`, `pupper_policy.service`) |
+
+Key sim2real lessons: re-verify the **joint-order contract** after switching simulators (`check_contract.py`), and **1-step action latency + actuator gain randomization** are both required for a gait that survives on hardware.
+
+---
+
 ## Deploying to real robot
 
 Follow [official Pupper v3 software installation](https://pupper-v3-documentation.readthedocs.io/en/latest/guide/software_installation.html) to flash the Raspberry Pi 5 image, then sync this repo to `/home/pi/pupperv3-monorepo`.
@@ -244,6 +261,7 @@ Wake-word (`pupster_wake/`), odom/EKF deploy, TTS tuning, SSH helpers, and other
 - OpenClaw / HTTP bridge: `pi_home/README.md`
 - Pi overlay workspaces: `pi_overlay/README.md`
 - Pupster voice agent: `ai/llm-ui/agent-starter-python/README.md`
+- Isaac Lab RL training + sim2real: `ai/isaac_lab/README.md` ([EN](ai/isaac_lab/README.en.md))
 - SLAM / LiDAR integration log: `cursor_lidar_integration_and_verificati.md`
 
 ---
