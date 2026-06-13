@@ -191,6 +191,10 @@ Full procedure: **`NAV2_RUNBOOK.md`**.
 
 ## Isaac Lab RL locomotion (`ai/isaac_lab/`)
 
+<p align="center">
+  <video src="https://github.com/tommywu052/pupperv3-monorepo/raw/main/docs/isaac_rl_result_pupper.mp4" controls muted loop width="720"></video>
+</p>
+
 **English:** An alternative locomotion-policy pipeline: port the Pupper v3 walking policy from MJX (MuJoCo) to **NVIDIA Isaac Lab (PhysX GPU + rsl_rl PPO)**, export to **ONNX**, and run it on the Pi with onnxruntime as a drop-in replacement for the C++ `neural_controller` (RTNeural). Reaches natural omnidirectional walking under keyboard/joystick teleop; the deployment node reuses the existing ros2_control interfaces (no C++ changes).
 
 **中文：** 把行走 policy 從 MJX 移植到 **Isaac Lab** 訓練、匯出 **ONNX**，在 Pi 上用 onnxruntime 推論，取代 RTNeural C++ controller。含完整 sim2real 配方與踩坑（關節順序錯位、致動延遲 + gain randomization、搖桿 e-stop 放軟）。
